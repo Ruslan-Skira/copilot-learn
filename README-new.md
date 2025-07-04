@@ -56,6 +56,9 @@ restart the server if it was already running.
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build locally
 - `npm run lint` - Run ESLint
+- `npm run test` - Run unit tests
+- `npm run test:coverage` - Run tests with coverage report
+- `npm run test:ui` - Run tests with UI interface
 
 ## 🎨 Project Structure
 
@@ -96,3 +99,28 @@ This project uses:
 ## 📄 License
 
 This project is licensed under the MIT License.
+
+## 🧪 Testing
+
+This project includes comprehensive unit tests covering:
+
+- **Components**: All UI components with interaction testing
+- **Services**: Geocoding and location services
+- **Context**: State management and data flow
+- **Hooks**: Custom React hooks
+- **Types**: TypeScript interface validation
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run with coverage
+npm run test:coverage
+
+# Run with UI interface
+npm run test:ui
+```
+
+For detailed testing documentation, see [TESTING.md](./TESTING.md).
