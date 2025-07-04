@@ -23,22 +23,6 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ className = "" }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Validate environment variables
-  if (!apiKey || !assistantId) {
-    return (
-      <div className={`bg-red-50 border border-red-200 rounded-lg p-6 ${className}`}>
-        <div className="text-red-800">
-          <h3 className="font-semibold">Configuration Error</h3>
-          <p className="text-sm mt-1">
-            {!apiKey && "VITE_OPENAI_API_KEY is missing. "}
-            {!assistantId && "VITE_ASSISTANT_ID is missing. "}
-            Please check your .env file.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   const handleSendMessage = async () => {
     if (inputValue.trim() && !isLoading) {
       const messageText = inputValue;

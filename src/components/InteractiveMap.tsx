@@ -1,8 +1,71 @@
+import { useEffect, useRef, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix for default markers in React-Leaflet
+const iconDefault = L.Icon.Default.prototype as L.Icon.Default & {
+  _getIconUrl?: () => string;
+};
+delete iconDefault._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
+
 interface InteractiveMapProps {
   className?: string;
+  center?: [number, number];
+  zoom?: number;
+  markers?: Array<{
+    id: string;
+    position: [number, number];
+    popup?: string;
+  }>;
+  onMapReady?: (addMarker: (lat: number, lng: number, popup?: string) => void, clearMarkers: () => void) => void;
 }
 
-export const InteractiveMap: React.FC<InteractiveMapProps> = ({ className = "" }) => {
+export const InteractiveMap: React.FC<InteractiveMapProps> = ({
+  className = "",
+  center = [45.3271, 14.4422], // Rijeka, Croatia coordinates
+  zoom = 13,
+  markers = [],
+  onMapReady
+}) => {
+  const mapRef = useRef<L.Map | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+
+  // Method to add new markers (will be used for address detection)
+  const addMarker = (lat: number, lng: number, popup?: string) => {
+    if (mapRef.current) {
+      const marker = L.marker([lat, lng]).addTo(mapRef.current);
+      if (popup) {
+        marker.bindPopup(popup);
+      }
+      // Center map on new marker
+      mapRef.current.setView([lat, lng], 15);
+    }
+  };
+
+  // Method to clear all markers
+  const clearMarkers = () => {
+    if (mapRef.current) {
+      mapRef.current.eachLayer((layer) => {
+        if (layer instanceof L.Marker) {
+          mapRef.current!.removeLayer(layer);
+        }
+      });
+    }
+  };
+
+  useEffect(() => {
+    setMapReady(true);
+    if (onMapReady && mapRef.current) {
+      onMapReady(addMarker, clearMarkers);
+    }
+  }, [onMapReady]);
+
   return (
     <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 ${className}`}>
       <div className="h-full flex flex-col">
@@ -11,54 +74,70 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({ className = "" }
           <div className="w-12 h-1 bg-indigo-500 rounded"></div>
         </div>
 
-        <div className="flex-1 bg-gradient-to-br from-blue-100 to-indigo-200 rounded-lg relative overflow-hidden">
-          {/* Map placeholder with grid pattern */}
-          <div className="absolute inset-0 opacity-20">
-            <div className="grid grid-cols-8 grid-rows-6 h-full">
-              {Array.from({ length: 48 }).map((_, i) => (
-                <div key={i} className="border border-blue-300"></div>
+        <div className="flex-1 rounded-lg overflow-hidden relative">
+          {mapReady ? (
+            <MapContainer
+              center={center}
+              zoom={zoom}
+              style={{ height: '100%', width: '100%' }}
+              className="rounded-lg"
+              ref={mapRef}
+            >
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              />
+
+              {/* Default marker for Rijeka */}
+              <Marker position={center}>
+                <Popup>
+                  <div className="text-center">
+                    <strong>Rijeka, Croatia</strong>
+                    <br />
+                    Port city on the Adriatic Sea
+                  </div>
+                </Popup>
+              </Marker>
+
+              {/* Dynamic markers from props */}
+              {markers.map((marker) => (
+                <Marker key={marker.id} position={marker.position}>
+                  {marker.popup && (
+                    <Popup>
+                      <div>{marker.popup}</div>
+                    </Popup>
+                  )}
+                </Marker>
               ))}
-            </div>
-          </div>
-
-          {/* Mock map markers */}
-          <div className="absolute top-1/4 left-1/3 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-lg"></div>
-          <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-blue-600 rounded-full animate-pulse shadow-lg"></div>
-          <div className="absolute top-3/4 left-2/3 w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-lg"></div>
-          <div className="absolute top-1/3 right-1/4 w-3 h-3 bg-purple-500 rounded-full animate-pulse shadow-lg"></div>
-
-          {/* Center content */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center bg-white bg-opacity-90 rounded-lg p-6 shadow-lg">
-              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">World Map View</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                Interactive map will be integrated here
-              </p>
-              <div className="flex justify-center space-x-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            </MapContainer>
+          ) : (
+            <div className="h-full bg-gradient-to-br from-blue-100 to-indigo-200 rounded-lg flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading map...</p>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="mt-4 flex justify-between items-center">
           <div className="text-sm text-gray-600">
             <span className="inline-flex items-center">
-              <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
-              Major Cities
+              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+              OpenStreetMap
             </span>
           </div>
-          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-            View Full Screen →
-          </button>
+          <div className="flex space-x-2">
+            <button
+              onClick={clearMarkers}
+              className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+            >
+              Clear Markers
+            </button>
+            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              View Full Screen →
+            </button>
+          </div>
         </div>
       </div>
     </div>

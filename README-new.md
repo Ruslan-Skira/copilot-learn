@@ -45,6 +45,9 @@ npm install
 npm run dev
 ```
 
+restart the server if it was already running.
+`pkill -f "npm run dev" && npm run dev`
+
 4. Open your browser and visit `http://localhost:5174`
 
 ## 📦 Available Scripts
