@@ -47,11 +47,14 @@ export interface ChatSession {
   lastActivity: Date;
 }
 
+export type WeatherCondition = 'sunny' | 'rainy' | 'cloudy' | 'snowy';
+
 export interface WeatherData {
-  temperature: number;
-  condition: string;
-  humidity: number;
-  windSpeed: number;
+  location: string;
+  temperature: number; // in Celsius
+  windSpeed: number; // in km/h
+  condition: WeatherCondition;
+  error?: string;
 }
 
 export interface CityStats {
