@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
 import OpenAI from 'openai';
+import { handleAddressDetection } from '../services/geocoding';
+import type { DetectedAddress } from '../types';
 
 interface ChatMessage {
   id: string;
@@ -12,9 +14,10 @@ interface ChatMessage {
 interface UseOpenAIAssistantProps {
   apiKey: string;
   assistantId: string;
+  onAddressDetected?: (address: DetectedAddress) => void;
 }
 
-export const useOpenAIAssistant = ({ apiKey, assistantId }: UseOpenAIAssistantProps) => {
+export const useOpenAIAssistant = ({ apiKey, assistantId, onAddressDetected }: UseOpenAIAssistantProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -24,6 +27,15 @@ export const useOpenAIAssistant = ({ apiKey, assistantId }: UseOpenAIAssistantPr
     apiKey,
     dangerouslyAllowBrowser: true, // Note: In production, use a backend proxy
   }), [apiKey]);
+
+  // Function to handle address detection
+  const detectAddress = useCallback(async (address: string) => {
+    const detectedAddress = await handleAddressDetection(address);
+    if (detectedAddress && onAddressDetected) {
+      onAddressDetected(detectedAddress);
+    }
+    return detectedAddress ? 'Address detected and displayed on map' : 'Address not found';
+  }, [onAddressDetected]);
 
   const createNewThread = useCallback(async () => {
     try {
@@ -77,9 +89,29 @@ export const useOpenAIAssistant = ({ apiKey, assistantId }: UseOpenAIAssistantPr
       // Create abort controller for this request
       abortControllerRef.current = new AbortController();
 
-      // Create and stream the run
+      // Create and stream the run with function calling tools
       const stream = openai.beta.threads.runs.stream(currentThreadId, {
         assistant_id: assistantId,
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'detect_address',
+              description: 'Detect and geocode a street address mentioned in the conversation. Call this function when the user mentions any street address, location, or place.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  address: {
+                    type: 'string',
+                    description: 'The complete street address, including street name, number, city, and country if available. For example: "123 Main St, New York, NY" or "Eiffel Tower, Paris, France"',
+                  },
+                },
+                required: ['address'],
+                additionalProperties: false,
+              },
+            },
+          },
+        ],
       });
 
       stream.on('textDelta', (textDelta) => {
@@ -90,6 +122,31 @@ export const useOpenAIAssistant = ({ apiKey, assistantId }: UseOpenAIAssistantPr
               : msg
           )
         );
+      });
+
+      stream.on('toolCallCreated', (toolCall) => {
+        console.log('Tool call created:', toolCall);
+      });
+
+      stream.on('toolCallDelta', (toolCallDelta) => {
+        console.log('Tool call delta:', toolCallDelta);
+      });
+
+      stream.on('toolCallDone', async (toolCall) => {
+        console.log('Tool call done:', toolCall);
+
+        if (toolCall.type === 'function' && toolCall.function.name === 'detect_address') {
+          try {
+            const args = JSON.parse(toolCall.function.arguments);
+            const result = await detectAddress(args.address);
+
+            // Note: Function result handling with streaming is complex in the current Assistant API
+            // For now, we'll just execute the function and let the assistant continue
+            console.log('Function result:', result);
+          } catch (error) {
+            console.error('Error processing function call:', error);
+          }
+        }
       });
 
       stream.on('textDone', () => {
@@ -141,7 +198,7 @@ export const useOpenAIAssistant = ({ apiKey, assistantId }: UseOpenAIAssistantPr
       }]);
       setIsLoading(false);
     }
-  }, [openai, threadId, assistantId, createNewThread]);
+  }, [openai, threadId, assistantId, createNewThread, detectAddress]);
 
   const startNewChat = useCallback(async () => {
     // Abort any ongoing stream

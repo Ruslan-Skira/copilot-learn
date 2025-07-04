@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useCityExplorer } from '../context/useCityExplorer';
+import { getLocationInfo } from '../services/geocoding';
 
 // Fix for default markers in React-Leaflet
 const iconDefault = L.Icon.Default.prototype as L.Icon.Default & {
@@ -35,6 +37,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 }) => {
   const mapRef = useRef<L.Map | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [currentMarkers, setCurrentMarkers] = useState<L.Marker[]>([]);
+
+  // Get city explorer context
+  const { currentLocation, updateLocationInfo } = useCityExplorer();
 
   // Method to add new markers (will be used for address detection)
   const addMarker = (lat: number, lng: number, popup?: string) => {
@@ -43,28 +49,53 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       if (popup) {
         marker.bindPopup(popup);
       }
+      setCurrentMarkers(prev => [...prev, marker]);
       // Center map on new marker
       mapRef.current.setView([lat, lng], 15);
     }
   };
 
   // Method to clear all markers
-  const clearMarkers = () => {
+  const clearMarkers = useCallback(() => {
     if (mapRef.current) {
-      mapRef.current.eachLayer((layer) => {
-        if (layer instanceof L.Marker) {
-          mapRef.current!.removeLayer(layer);
-        }
+      currentMarkers.forEach(marker => {
+        mapRef.current!.removeLayer(marker);
+      });
+      setCurrentMarkers([]);
+    }
+  }, [currentMarkers]);
+
+  // Handle address detection from chat
+  useEffect(() => {
+    if (currentLocation && mapRef.current) {
+      const { address } = currentLocation;
+
+      // Clear existing markers
+      clearMarkers();
+
+      // Add new marker for the detected address
+      addMarker(
+        address.coordinates.lat,
+        address.coordinates.lng,
+        `<div>
+          <strong>${address.formatted}</strong><br/>
+          ${address.city ? `${address.city}, ` : ''}${address.country || ''}
+        </div>`
+      );
+
+      // Get additional location info and update context
+      getLocationInfo(address).then(locationInfo => {
+        updateLocationInfo(locationInfo);
       });
     }
-  };
+  }, [currentLocation, updateLocationInfo, clearMarkers]);
 
   useEffect(() => {
     setMapReady(true);
     if (onMapReady && mapRef.current) {
       onMapReady(addMarker, clearMarkers);
     }
-  }, [onMapReady]);
+  }, [onMapReady, clearMarkers]);
 
   return (
     <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 ${className}`}>

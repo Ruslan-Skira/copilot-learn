@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useOpenAIAssistant } from '../hooks/useOpenAIAssistant';
+import { useCityExplorer } from '../context/useCityExplorer';
+import type { DetectedAddress } from '../types';
 
 interface ChatBoxProps {
   className?: string;
@@ -13,9 +15,18 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ className = "" }) => {
   const apiKey = import.meta.env.VITE_OPENAI_API_KEY || '';
   const assistantId = import.meta.env.VITE_ASSISTANT_ID || '';
 
+  // Get city explorer context
+  const { setLocation } = useCityExplorer();
+
+  // Handle address detection from function calls
+  const handleAddressDetected = (address: DetectedAddress) => {
+    setLocation(address);
+  };
+
   const { messages, isLoading, sendMessage, startNewChat } = useOpenAIAssistant({
     apiKey,
     assistantId,
+    onAddressDetected: handleAddressDetected,
   });
 
   // Auto-scroll to bottom when new messages arrive
